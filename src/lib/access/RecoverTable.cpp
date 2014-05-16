@@ -15,7 +15,11 @@ void RecoverTable::executePlanOperation() {
     throw std::runtime_error("RecoverTable requires a table name");
   }
   auto* sm = io::StorageManager::getInstance();
-  sm->recoverTable(_tableName, _path, _threadCount);
+  if (!_withDelta) {
+    sm->recoverTable(_tableName, _path, _threadCount);
+  } else {
+    sm->loadTableWithDelta(_tableName, _path, _threadCount);
+  }
 }
 
 std::shared_ptr<PlanOperation> RecoverTable::parse(const Json::Value& data) {
@@ -37,6 +41,11 @@ std::shared_ptr<PlanOperation> RecoverTable::parse(const Json::Value& data) {
   } else {
     p->_threadCount = data["threads"].asInt();
   }
+  if (!data.isMember("withDelta")) {
+    p->_withDelta = false;
+  } else {
+    p->_withDelta = data["withDelta"].asBool();
+  }
 
   return p;
 }
@@ -48,5 +57,9 @@ void RecoverTable::setTableName(const std::string& name) { _tableName = name; }
 void RecoverTable::setPath(const std::string& path) { _path = path; }
 
 void RecoverTable::setNumberThreads(const size_t thread_count) { _threadCount = thread_count; }
+
+void RecoverTable::setWithDelta(const bool withDelta) {
+  _withDelta = withDelta;
+}
 }
 }

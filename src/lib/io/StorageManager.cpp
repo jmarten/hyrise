@@ -158,7 +158,7 @@ std::shared_ptr<storage::AbstractIndex> StorageManager::getInvertedIndex(const s
   return get<storage::AbstractIndex>(name, unsafe);
 }
 
-void StorageManager::persistTable(const std::string& name, std::string path) {
+void StorageManager::persistTable(const std::string& name, std::string path, bool withDelta) {
   if (!exists(name)) {
     throw std::runtime_error("Cannot persist nonexisting table");
   }
@@ -176,6 +176,11 @@ void StorageManager::persistTable(const std::string& name, std::string path) {
   }
 
   td.dump(name, table);
+  if (withDelta && store) {
+    store->prepareCheckpoint();
+    td.dumpDelta(name, table);
+    td.dumpCidVectors(name, table);
+  }
 }
 
 
@@ -184,6 +189,7 @@ void StorageManager::recoverTables(const size_t thread_count) {
 
   // load table dumps containing the main
   auto table_files = _listdir(Settings::getInstance()->getTableDumpDir());
+
   std::vector<std::thread> threadpool;
   for (auto filename : table_files) {
     if (filename[0] != '.') {
@@ -217,7 +223,7 @@ void StorageManager::recoverCheckpoint(const std::string& checkpoint_dir, const 
   auto table = getTable(filename);
   auto store = std::dynamic_pointer_cast<storage::Store>(table);
   io::TableDumpLoader loader(checkpoint_dir, filename);
-  CSVHeader header(checkpoint_dir + "/" + filename + "/header.dat",
+  CSVHeader header(checkpoint_dir + "/" + filename + "/delta/header.dat",
                    CSVHeader::params().setCSVParams(csv::HYRISE_FORMAT));
   auto delta = Loader::load(
       Loader::params().setInput(loader).setHeader(header).setDeltaDataStructure(true).setModifiableMutableVerticalTable(
@@ -233,13 +239,18 @@ void StorageManager::recoverTables(const size_t thread_count) {
 }
 #endif
 
-void StorageManager::recoverTable(const std::string& name, std::string path, const size_t thread_count) {
 
+/**
+ * Loads the main table with the given name from the given path.
+ */
+void StorageManager::recoverTable(const std::string& name,
+                                  std::string path,
+                                  const size_t thread_count) {
   if (path == "")
     path = Settings::getInstance()->getTableDumpDir();
 
   io::TableDumpLoader loader(path, name);
-  CSVHeader header(path + "/" + name + "/header.dat", CSVHeader::params().setCSVParams(csv::HYRISE_FORMAT));
+  CSVHeader header(path + "/" + name + "/main/header.dat", CSVHeader::params().setCSVParams(csv::HYRISE_FORMAT));
   auto t = Loader::load(Loader::params().setInput(loader).setHeader(header));
   t->setName(name);
   loader.loadIndices(t);
@@ -249,6 +260,19 @@ void StorageManager::recoverTable(const std::string& name, std::string path, con
   }
 
   add(name, t);
+}
+
+/**
+ * Recover the main and the delta table from persistence directory.
+ */
+void StorageManager::loadTableWithDelta(const std::string& name,
+                                        std::string path,
+                                        const size_t thread_count) {
+  if(path == "") {
+    path = Settings::getInstance()->getTableDumpDir();
+  }
+  recoverTable(name, path, thread_count);
+  recoverCheckpoint(path, name);
 }
 }
 }  // namespace hyrise::io

@@ -104,7 +104,7 @@ TEST_F(DumpTests, simple_dump_load_header) {
 
 
   EmptyInput input;
-  CSVHeader header("test/dump/simple/header.dat", CSVHeader::params().setCSVParams(csv::HYRISE_FORMAT));
+  CSVHeader header("test/dump/simple/main/header.dat", CSVHeader::params().setCSVParams(csv::HYRISE_FORMAT));
   hyrise::storage::atable_ptr_t t = Loader::load(Loader::params().setInput(input).setHeader(header));
   ASSERT_EQ(t->size(), 0u);
   ASSERT_EQ(t->columnCount(), simpleTable->columnCount());
@@ -118,7 +118,7 @@ TEST_F(DumpTests, simple_dump_load_all) {
 
 
   TableDumpLoader input("./test/dump", "simple");
-  CSVHeader header("test/dump/simple/header.dat", CSVHeader::params().setCSVParams(csv::HYRISE_FORMAT));
+  CSVHeader header("test/dump/simple/main/header.dat", CSVHeader::params().setCSVParams(csv::HYRISE_FORMAT));
   auto t = Loader::load(Loader::params().setInput(input).setHeader(header));
   ASSERT_EQ(t->size(), 100u);
   ASSERT_EQ(t->columnCount(), simpleTable->columnCount());
@@ -152,7 +152,7 @@ TEST_F(DumpTests, simple_dump_should_not_dump_delta) {
   simpleTable = Loader::shortcuts::load("test/lin_xxs.tbl");
 
   TableDumpLoader input("./test/dump", "simple");
-  CSVHeader header("test/dump/simple/header.dat", CSVHeader::params().setCSVParams(csv::HYRISE_FORMAT));
+  CSVHeader header("test/dump/simple/main/header.dat", CSVHeader::params().setCSVParams(csv::HYRISE_FORMAT));
   auto t = Loader::load(Loader::params().setInput(input).setHeader(header));
   ASSERT_EQ(t->size(), 100u);
   ASSERT_EQ(t->columnCount(), simpleTable->columnCount());

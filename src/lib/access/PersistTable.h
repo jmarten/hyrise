@@ -13,10 +13,12 @@ class PersistTable : public PlanOperation {
   const std::string vname();
   void setTableName(const std::string& name);
   void setPath(const std::string& path);
+  void setWithDelta(bool withDelta);
 
  private:
   std::string _tableName;
   std::string _path;
+  bool _withDelta;
 };
 }
 }

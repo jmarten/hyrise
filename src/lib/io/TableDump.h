@@ -30,11 +30,18 @@ namespace storage {
  */
 class SimpleTableDump {
   std::string _baseDirectory;
+  std::string _mainDirectory;
+  std::string _deltaDirectory;
 
   /**
    * Create all required directories;
    */
   void prepare(std::string name);
+
+  /**
+   * Get the directory to dump the main or the delta.
+   */
+  std::string getDumpDirectory(bool delta);
 
   /**
    * Dumps the dictionary and performs simple conversion based on the
@@ -46,19 +53,21 @@ class SimpleTableDump {
    * Dumps the attrbite but writes the attribute data binary since its
    * all value_id_t
    */
-  void dumpAttribute(std::string name, atable_ptr_t t, size_t col);
+  void dumpAttribute(std::string name, atable_ptr_t t, size_t col, bool delta = false);
 
   /**
    */
-  void dumpMetaData(std::string name, atable_ptr_t t);
+  void dumpMetaData(std::string name, atable_ptr_t t, bool delta = false);
 
   /**
    */
-  void dumpHeader(std::string name, atable_ptr_t t);
+  void dumpHeader(std::string name, atable_ptr_t t, bool delta = false);
 
   /**
    */
   void dumpIndices(std::string name, store_ptr_t s);
+
+  
 
   /**
    * Check if the file is a store and not a horizontal table
@@ -67,7 +76,8 @@ class SimpleTableDump {
 
  public:
   // Initialize a new object based on the base path for the output
-  explicit SimpleTableDump(std::string outputDir) : _baseDirectory(outputDir) {}
+  explicit SimpleTableDump(std::string outputDir) : _baseDirectory(outputDir) {
+  }
 
   /**
    * For a table identified by name and table perform the dump
@@ -93,12 +103,16 @@ class TableDumpLoader : public AbstractInput {
   std::string _base;
   std::string _table;
 
-  size_t getSize();
+  size_t getSize(std::string main_delta_path);
 
   void loadDictionary(std::string name, size_t col, storage::atable_ptr_t intable);
   void loadDeltaDictionary(std::string name, size_t col, storage::atable_ptr_t intable);
 
-  void loadAttribute(std::string name, size_t col, size_t size, storage::atable_ptr_t intable);
+  void loadAttribute(std::string name,
+                     size_t col,
+                     size_t size,
+                     storage::atable_ptr_t intable,
+                     std::string main_delta_path);
 
  public:
   TableDumpLoader(std::string base, std::string table) : _base(base), _table(table) {}
