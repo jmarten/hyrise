@@ -90,17 +90,13 @@ class StorageManager : public ResourceManager {
   /// @param[in] fileName fileName
   std::string makePath(const std::string& fileName);
 
-  void persistTable(const std::string& name, std::string path = "", bool withDelta = false);
+  void persistTable(const std::string& name, std::string path = "");
 
   void recoverTables(const size_t thread_count = 1);
 
-  void recoverTable(const std::string& name,
-                    std::string path = "",
-                    const size_t thread_count = 1);
+  void recoverTable(const std::string& name, std::string path = "", const size_t thread_count = 1);
 
   void recoverCheckpoint(const std::string& checkpoint_dir, const std::string& filename);
-
-  void loadTableWithDelta(const std::string& name, std::string path, const size_t thread_count = 1);
 };
 }
 }  // namespace hyrise::io

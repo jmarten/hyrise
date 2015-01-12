@@ -50,8 +50,6 @@ static const std::string HEADER_EXT = "header.dat";
 static const std::string DICT_EXT = ".dict.dat";
 static const std::string ATTR_EXT = ".attr.dat";
 static const std::string INDEX_EXT = "indices.dat";
-static const std::string DELTA_FOLDER = "delta";
-static const std::string MAIN_FOLDER = "main";
 
 static inline std::string buildPath(std::initializer_list<std::string> l) {
   return functional::foldLeft(l, std::string(), infix("/"));
@@ -300,22 +298,10 @@ void write_to_delta_vector_functor::operator()<hyrise_string_t>() {
 void SimpleTableDump::prepare(std::string name) {
   std::string fullPath = _baseDirectory + "/" + name;
   _mkdir(fullPath);
-  _mainDirectory = fullPath + "/" + storage::DumpHelper::MAIN_FOLDER;
-  _mkdir(_mainDirectory);
-  _deltaDirectory = fullPath + "/" + storage::DumpHelper::DELTA_FOLDER;
-  _mkdir(_deltaDirectory);
-}
-
-std::string SimpleTableDump::getDumpDirectory(bool delta) {
-  if (delta) {
-    return _deltaDirectory;
-  } else {
-    return _mainDirectory;
-  }
 }
 
 void SimpleTableDump::dumpDictionary(std::string name, atable_ptr_t table, size_t col, bool delta) {
-  std::string fullPath = getDumpDirectory(delta) + "/" + table->nameOfColumn(col) + ".dict.dat";
+  std::string fullPath = _baseDirectory + "/" + name + "/" + table->nameOfColumn(col) + ".dict.dat";
   std::ofstream data(fullPath, std::ios::out | std::ios::binary);
   if (!delta) {
     // We make a small hack here, first we obtain the size of the
@@ -339,10 +325,10 @@ void SimpleTableDump::dumpDictionary(std::string name, atable_ptr_t table, size_
   data.close();
 }
 
-void SimpleTableDump::dumpAttribute(std::string name, atable_ptr_t table, size_t col, bool delta) {
+void SimpleTableDump::dumpAttribute(std::string name, atable_ptr_t table, size_t col) {
   assert(std::dynamic_pointer_cast<Store>(table) ==
          nullptr);  // this should never be called with a store directly, but with main and delta table sepratly.
-  std::string fullPath = getDumpDirectory(delta) + "/" + table->nameOfColumn(col) + ".attr.dat";
+  std::string fullPath = _baseDirectory + "/" + name + "/" + table->nameOfColumn(col) + ".attr.dat";
   std::ofstream data(fullPath, std::ios::out | std::ios::binary);
 
   // size_t tableSize = table->size(); // get size before, to avoid chasing updates..
@@ -360,7 +346,7 @@ void SimpleTableDump::dumpAttribute(std::string name, atable_ptr_t table, size_t
   data.close();
 }
 
-void SimpleTableDump::dumpHeader(std::string name, atable_ptr_t table, bool delta) {
+void SimpleTableDump::dumpHeader(std::string name, atable_ptr_t table) {
   std::stringstream header;
   std::vector<std::string> names, types;
   std::vector<uint32_t> parts;
@@ -390,16 +376,14 @@ void SimpleTableDump::dumpHeader(std::string name, atable_ptr_t table, bool delt
   header << std::accumulate(allParts.begin(), allParts.end(), std::string(), infix(" | ")) << "\n";
   header << "===";
 
-  std::string fullPath = getDumpDirectory(delta) + "/header.dat";
-
-
+  std::string fullPath = _baseDirectory + "/" + name + "/header.dat";
   std::ofstream data(fullPath, std::ios::out | std::ios::binary);
   data << header.str();
   data.close();
 }
 
-void SimpleTableDump::dumpMetaData(std::string name, atable_ptr_t table, bool delta) {
-  std::string fullPath = getDumpDirectory(delta) + "/metadata.dat";
+void SimpleTableDump::dumpMetaData(std::string name, atable_ptr_t table) {
+  std::string fullPath = _baseDirectory + "/" + name + "/metadata.dat";
   std::ofstream data(fullPath, std::ios::out | std::ios::binary);
   data << table->checkpointSize();
   data.close();
@@ -408,7 +392,7 @@ void SimpleTableDump::dumpMetaData(std::string name, atable_ptr_t table, bool de
 void SimpleTableDump::dumpIndices(std::string name, store_ptr_t store) {
   auto indexedColumns = store->getIndexedColumns();
   if (!indexedColumns.empty()) {
-    std::string fullPath = getDumpDirectory(false) + "/indices.dat";
+    std::string fullPath = _baseDirectory + "/" + name + "/indices.dat";
     std::ofstream data(fullPath, std::ios::trunc | std::ios::binary);
     std::ostream_iterator<size_t> it(data);
     size_t total = indexedColumns.size();
@@ -431,7 +415,7 @@ void SimpleTableDump::dumpIndices(std::string name, store_ptr_t store) {
       auto idxMain = io::StorageManager::getInstance()->getInvertedIndex(idxName);
 
       // dump main index, expected to be of type GroupkeyIndex
-      fullPath = getDumpDirectory(false) + "/" + idxName + ".dat";
+      fullPath = _baseDirectory + "/" + name + "/" + idxName + ".dat";
       std::ofstream outstream(fullPath, std::ios::trunc | std::ios::binary);
 
       if (idxCols.size() == 1) {
@@ -486,11 +470,11 @@ bool SimpleTableDump::dumpDelta(std::string name, atable_ptr_t table) {
   for (size_t i = 0; i < deltaTable->columnCount(); ++i) {
     // For each attribute dump dictionary and values
     dumpDictionary(name, deltaTable, i, true);
-    dumpAttribute(name, deltaTable, i, true);
+    dumpAttribute(name, deltaTable, i);
   }
 
-  dumpHeader(name, deltaTable, true);
-  dumpMetaData(name, deltaTable, true);
+  dumpHeader(name, deltaTable);
+  dumpMetaData(name, deltaTable);
 
   return true;
 }
@@ -500,8 +484,8 @@ bool SimpleTableDump::dumpCidVectors(std::string name, atable_ptr_t table) {
   prepare(name);
   auto store = std::dynamic_pointer_cast<Store>(table);
 
-  std::string fullPath_begin = _baseDirectory + "/" + name + "/" + storage::DumpHelper::DELTA_FOLDER + "/begin.cid.dat";
-  std::string fullPath_end = _baseDirectory + "/" + name + "/" + storage::DumpHelper::DELTA_FOLDER + "/end.cid.dat";
+  std::string fullPath_begin = _baseDirectory + "/" + name + "/begin.cid.dat";
+  std::string fullPath_end = _baseDirectory + "/" + name + "/end.cid.dat";
   std::ofstream data_begin(fullPath_begin, std::ios::out | std::ios::binary);
   std::ofstream data_end(fullPath_end, std::ios::out | std::ios::binary);
 
@@ -531,8 +515,8 @@ bool SimpleTableDump::dumpCidVectors(std::string name, atable_ptr_t table) {
 
 namespace io {
 
-size_t TableDumpLoader::getSize(std::string main_delta_path) {
-  std::string path = storage::DumpHelper::buildPath({_base, _table, main_delta_path, storage::DumpHelper::META_DATA_EXT});
+size_t TableDumpLoader::getSize() {
+  std::string path = storage::DumpHelper::buildPath({_base, _table, storage::DumpHelper::META_DATA_EXT});
   std::ifstream data(path, std::ios::binary);
   size_t numRows;
   data >> numRows;
@@ -541,7 +525,7 @@ size_t TableDumpLoader::getSize(std::string main_delta_path) {
 }
 
 void TableDumpLoader::loadDictionary(std::string name, size_t col, storage::atable_ptr_t intable) {
-  std::string path = storage::DumpHelper::buildPath({_base, _table, storage::DumpHelper::MAIN_FOLDER, name}) + storage::DumpHelper::DICT_EXT;
+  std::string path = storage::DumpHelper::buildPath({_base, _table, name}) + storage::DumpHelper::DICT_EXT;
 
   // determine file size
   struct stat stbuf;
@@ -561,7 +545,7 @@ void TableDumpLoader::loadDictionary(std::string name, size_t col, storage::atab
 }
 
 void TableDumpLoader::loadDeltaDictionary(std::string name, size_t col, storage::atable_ptr_t intable) {
-  std::string path = storage::DumpHelper::buildPath({_base, _table, storage::DumpHelper::DELTA_FOLDER, name}) + storage::DumpHelper::DICT_EXT;
+  std::string path = storage::DumpHelper::buildPath({_base, _table, name}) + storage::DumpHelper::DICT_EXT;
   std::ifstream data(path, std::ios::binary);
 
   storage::write_to_delta_vector_functor fun(data, intable, col);
@@ -572,8 +556,8 @@ void TableDumpLoader::loadDeltaDictionary(std::string name, size_t col, storage:
 }
 
 
-void TableDumpLoader::loadAttribute(std::string name, size_t col, size_t size, storage::atable_ptr_t intable, std::string main_delta_path) {
-  std::string path = storage::DumpHelper::buildPath({_base, _table, main_delta_path, name}) + storage::DumpHelper::ATTR_EXT;
+void TableDumpLoader::loadAttribute(std::string name, size_t col, size_t size, storage::atable_ptr_t intable) {
+  std::string path = storage::DumpHelper::buildPath({_base, _table, name}) + storage::DumpHelper::ATTR_EXT;
   std::ifstream data(path, std::ios::binary);
 
   std::vector<value_id_t> inputVector;
@@ -591,7 +575,7 @@ void TableDumpLoader::loadAttribute(std::string name, size_t col, size_t size, s
 }
 
 void TableDumpLoader::loadIndices(storage::atable_ptr_t intable) {
-  std::string path = storage::DumpHelper::buildPath({_base, _table, storage::DumpHelper::MAIN_FOLDER + "/"}) + storage::DumpHelper::INDEX_EXT;
+  std::string path = storage::DumpHelper::buildPath({_base, _table + "/"}) + storage::DumpHelper::INDEX_EXT;
   std::ifstream data(path, std::ios::binary);
   if (data) {
     std::vector<std::vector<size_t>> indexedColumns;
@@ -616,7 +600,7 @@ void TableDumpLoader::loadIndices(storage::atable_ptr_t intable) {
         idxDeltaName += "__" + intable->nameOfColumn(col);
       }
 #ifdef DUMP_ACTUAL_INDICES
-      std::string idxPath = _base + "/" + _table + "/" + storage::DumpHelper::MAIN_FOLDER + "/" + idxName + ".dat";
+      std::string idxPath = _base + "/" + _table + "/" + idxName + ".dat";
       std::ifstream instream(idxPath, std::ios::binary);
       storage::RestoreGroupkeyIndexFunctor funMain(intable, idxCols[0], instream, idxName);
 #else
@@ -654,25 +638,21 @@ void TableDumpLoader::loadIndices(storage::atable_ptr_t intable) {
 std::shared_ptr<storage::AbstractTable> TableDumpLoader::load(storage::atable_ptr_t intable,
                                                               const storage::compound_metadata_list* meta,
                                                               const Loader::params& args) {
-
+  // Resize according to meta information
+  size_t tableSize = getSize();
+  intable->resize(tableSize);
 
   if (args.getDeltaDataStructure() == false) {
-    // Resize according to meta information
-    size_t tableSize = getSize(storage::DumpHelper::MAIN_FOLDER);
-    intable->resize(tableSize);
     for (size_t i = 0; i < intable->columnCount(); ++i) {
       std::string name = intable->nameOfColumn(i);
       loadDictionary(name, i, intable);
-      loadAttribute(name, i, tableSize, intable, storage::DumpHelper::MAIN_FOLDER);
+      loadAttribute(name, i, tableSize, intable);
     }
   } else {
-    // Resize according to meta information
-    size_t tableSize = getSize(storage::DumpHelper::DELTA_FOLDER);
-    intable->resize(tableSize);
     for (size_t i = 0; i < intable->columnCount(); ++i) {
       std::string name = intable->nameOfColumn(i);
       loadDeltaDictionary(name, i, intable);
-      loadAttribute(name, i, tableSize, intable, storage::DumpHelper::DELTA_FOLDER);
+      loadAttribute(name, i, tableSize, intable);
     }
   }
   return intable;
@@ -681,8 +661,8 @@ std::shared_ptr<storage::AbstractTable> TableDumpLoader::load(storage::atable_pt
 bool TableDumpLoader::loadCidVectors(std::string name, storage::atable_ptr_t table) {
   auto store = std::dynamic_pointer_cast<storage::Store>(table);
 
-  std::string fullPath_begin = _base + "/" + name + "/" + storage::DumpHelper::DELTA_FOLDER + "/begin.cid.dat";
-  std::string fullPath_end = _base + "/" + name + "/" + storage::DumpHelper::DELTA_FOLDER + "/end.cid.dat";
+  std::string fullPath_begin = _base + "/" + name + "/begin.cid.dat";
+  std::string fullPath_end = _base + "/" + name + "/end.cid.dat";
 
   std::ifstream data_begin(fullPath_begin, std::ios::binary);
   std::ifstream data_end(fullPath_end, std::ios::binary);

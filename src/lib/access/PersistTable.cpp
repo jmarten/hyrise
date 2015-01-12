@@ -17,7 +17,7 @@ void PersistTable::executePlanOperation() {
     throw std::runtime_error("PersistTable requires a table name");
   }
   if (sm->exists(_tableName)) {
-    sm->persistTable(_tableName, _path, _withDelta);
+    sm->persistTable(_tableName, _path);
   } else {
     throw std::runtime_error("PersistTable: Table does not exist.");
   }
@@ -37,12 +37,6 @@ std::shared_ptr<PlanOperation> PersistTable::parse(const Json::Value& data) {
     p->_path = data["path"].asString();
   }
 
-  if (!data.isMember("withDelta")) {
-    p->_withDelta = false;
-  } else {
-    p->_withDelta = data["withDelta"].asBool();
-  }
-
   return p;
 }
 
@@ -51,7 +45,5 @@ const std::string PersistTable::vname() { return "PersistTable"; }
 void PersistTable::setTableName(const std::string& name) { _tableName = name; }
 
 void PersistTable::setPath(const std::string& path) { _path = path; }
-
-void PersistTable::setWithDelta(bool withDelta) { _withDelta = withDelta; }
 }
 }

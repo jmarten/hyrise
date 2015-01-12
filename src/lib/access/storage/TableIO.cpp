@@ -41,7 +41,7 @@ std::shared_ptr<PlanOperation> DumpTable::parse(const Json::Value& data) {
 
 void LoadDumpedTable::executePlanOperation() {
   io::TableDumpLoader input(Settings::getInstance()->getDBPath(), _name);
-  io::CSVHeader header(Settings::getInstance()->getDBPath() + "/" + _name + "/main/header.dat",
+  io::CSVHeader header(Settings::getInstance()->getDBPath() + "/" + _name + "/header.dat",
                        io::CSVHeader::params().setCSVParams(io::csv::HYRISE_FORMAT));
 
   auto t = io::Loader::load(io::Loader::params().setInput(input).setHeader(header));

@@ -14,13 +14,11 @@ class RecoverTable : public PlanOperation {
   void setTableName(const std::string& name);
   void setPath(const std::string& path);
   void setNumberThreads(const size_t thread_count);
-  void setWithDelta(const bool withDelta);
 
  private:
   std::string _tableName;
   std::string _path;
   size_t _threadCount;
-  bool _withDelta;
 };
 }
 }

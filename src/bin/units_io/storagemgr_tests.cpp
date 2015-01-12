@@ -6,11 +6,6 @@
 #include <storage/MutableVerticalTable.h>
 #include "storage/Store.h"
 #include "helper/checked_cast.h"
-#include <access/InsertScan.h>
-#include <access/tx/Commit.h>
-#include "io/TransactionManager.h"
-#include <access/MergeTable.h>
-
 
 namespace hyrise {
 namespace io {
@@ -89,58 +84,5 @@ TEST_F(StorageManagerTests, load_persist_and_recover_table) {
   sm->recoverTable("LINXXS");
   ASSERT_TRUE(sm->exists("LINXXS"));
 }
-
-TEST_F(StorageManagerTests, persist_and_recover_table_with_delta) {
-  auto rows = Loader::shortcuts::load("test/alltypes.tbl");
-  auto orig = Loader::shortcuts::load("test/alltypes.tbl");
-  auto expected = Loader::shortcuts::load("test/alltypes.tbl");
-
-  const std::string tablename = "DUMP_TEST";
-  auto sm = StorageManager::getInstance();
-
-  orig->setName(tablename);
-  sm->add(tablename, orig);
-
-  // Make sure, that table is in MAIN
-  access::MergeTable mt;
-  mt.addInput(sm->getTable("DUMP_TEST"));
-  mt.execute();
-
-  // insert some rows, which remain in the delta.
-  access::InsertScan is;
-  auto ctx = tx::TransactionManager::getInstance().buildContext();
-  is.setTXContext(ctx);
-  is.addInput(orig);
-  is.setInputData(rows);
-  is.execute();
-  access::Commit c;
-  c.addInput(is.getResultTable());
-  c.setTXContext(ctx);
-  c.execute();
-
-  // dump table with delta to disk and delete it from StorageManager
-  sm->persistTable(tablename, "", true);
-  sm->removeTable(tablename);
-  ASSERT_FALSE(sm->exists(tablename));
-
-  // load table back into StorageManager
-  sm->loadTableWithDelta(tablename, "");
-  ASSERT_TRUE(sm->exists(tablename));
-
-  // Compare resulting table.
-  auto table = sm->getTable(tablename);
-  auto store = std::dynamic_pointer_cast<hyrise::storage::Store>(table);
-  ASSERT_EQ(store->size(), 8);
-  ASSERT_EQ(store->getDeltaTable()->size(), 4);
-  ASSERT_EQ(store->getMainTable()->size(), 4);
-  ASSERT_EQ(store->columnCount(), orig->columnCount());
-  
-  ASSERT_TABLE_EQUAL(store, orig);
-  ASSERT_TABLE_EQUAL(store->getMainTable(), expected);
-  ASSERT_TABLE_EQUAL(store->getDeltaTable(), expected);
-
-  sm->removeTable(tablename);
-}
-
 }
 }  // namespace hyrise::io
